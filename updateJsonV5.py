@@ -81,8 +81,11 @@ def menu_driven_bulk_update(json_data: dict) -> dict:
 
         print(f"\nYou selected '{selected_key}'.")
 
-        # Ask for target value and new value
-        target_value = input(f"Enter the target value for '{selected_key}' (wildcard supported): ").strip()
+        # Ask for target value and add wildcards
+        target_value = input(f"Enter the target value for '{selected_key}': ").strip()
+        if "*" not in target_value:
+            target_value = f"*{target_value}*"  # Automatically add wildcards for partial matching
+
         new_value = input(f"Enter the new value for '{selected_key}': ").strip()
 
         # Find matches with wildcards enabled
@@ -129,26 +132,18 @@ def menu_driven_bulk_update(json_data: dict) -> dict:
     print("\nFinal JSON after updates:")
     return json_data
 
-
-# Example JSON data
-example_json = {
+{
     "hostname": "host1.example.com",
     "ip_address": "192.168.1.1",
     "servers": [
-        {"name": "server1", "ip": "192.168.1.2"},
-        {"name": "server2", "ip": "192.168.1.3"}
+        {"name": "host2.example.com", "ip": "192.168.1.2"},
+        {"name": "host3.example.net", "ip": "192.168.1.3"}
     ],
     "metadata": {
         "serial_number": "SN12345",
         "status": "active"
     }
 }
-
-# Run the menu-driven JSON updater
-updated_json = menu_driven_bulk_update(example_json)
-
-# Display the final JSON
-print(updated_json)
 
 
 Menu:
@@ -160,25 +155,27 @@ Menu:
 Select an option (1-4): 1
 
 You selected 'hostname'.
-Enter the target value for 'hostname' (wildcard supported): host*.example.com
+Enter the target value for 'hostname': host
 Enter the new value for 'hostname': updated-host.example.com
 
-Found 1 match(es) for 'hostname':
+Found 2 match(es) for 'hostname':
 1. Key: hostname, Current Value: host1.example.com, New Value: updated-host.example.com
+2. Key: servers[0].name, Current Value: host2.example.com, New Value: updated-host.example.com
 all. Update all keys with the target value.
 exit. Exit without making any changes.
 
 Enter the numbers corresponding to the keys you want to update (comma-separated, 'all' for all, or 'exit' to cancel): all
 
 Updated: Key = 'hostname', New Value = 'updated-host.example.com'
+Updated: Key = 'servers[0].name', New Value = 'updated-host.example.com'
 
 Final JSON:
 {
     "hostname": "updated-host.example.com",
     "ip_address": "192.168.1.1",
     "servers": [
-        {"name": "server1", "ip": "192.168.1.2"},
-        {"name": "server2", "ip": "192.168.1.3"}
+        {"name": "updated-host.example.com", "ip": "192.168.1.2"},
+        {"name": "host3.example.net", "ip": "192.168.1.3"}
     ],
     "metadata": {
         "serial_number": "SN12345",
