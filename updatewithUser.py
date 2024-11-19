@@ -66,3 +66,49 @@ updated_json = interactive_update_json(json_data, target_value, new_value)
 # Display final JSON
 print("\nFinal JSON after updates:")
 print(updated_json)
+
+
+{
+    "primary_ip": "192.168.1.1",
+    "secondary_ip": "192.168.1.2",
+    "servers": [
+        {"name": "server1", "ip": "192.168.1.1"},
+        {"name": "server2", "ip": "192.168.1.3"},
+        {"name": "server3", "ip": "192.168.1.1"}
+    ],
+    "metadata": {
+        "datacenter_ip": "192.168.1.1",
+        "status": "active"
+    }
+}
+
+
+Found match: Key = 'primary_ip', Value = '192.168.1.1'
+Do you want to update this value to '10.0.0.1'? (Yes/No): Yes
+Updated: Key = 'primary_ip', New Value = '10.0.0.1'
+
+Found match: Key = 'servers[0].ip', Value = '192.168.1.1'
+Do you want to update this value to '10.0.0.1'? (Yes/No): No
+Skipped: Key = 'servers[0].ip'
+
+Found match: Key = 'servers[2].ip', Value = '192.168.1.1'
+Do you want to update this value to '10.0.0.1'? (Yes/No): Yes
+Updated: Key = 'servers[2].ip', New Value = '10.0.0.1'
+
+Found match: Key = 'metadata.datacenter_ip', Value = '192.168.1.1'
+Do you want to update this value to '10.0.0.1'? (Yes/No): Yes
+Updated: Key = 'metadata.datacenter_ip', New Value = '10.0.0.1'
+
+{
+    "primary_ip": "10.0.0.1",
+    "secondary_ip": "192.168.1.2",
+    "servers": [
+        {"name": "server1", "ip": "192.168.1.1"},
+        {"name": "server2", "ip": "192.168.1.3"},
+        {"name": "server3", "ip": "10.0.0.1"}
+    ],
+    "metadata": {
+        "datacenter_ip": "10.0.0.1",
+        "status": "active"
+    }
+}
