@@ -44,10 +44,10 @@ def find_all_keys_by_value(json_data: dict, target_value: str, use_wildcard: boo
     search(json_data)
     return matches
 
-def def menu_driven_bulk_update_with_substring(json_data: dict) -> dict:
+def menu_driven_update_with_key_check(json_data: dict) -> dict:
     """
     Menu-driven interface for updating specific keys in a JSON object.
-    Supports substring replacement in matched values.
+    Handles cases where keys exist but values do not match, suggesting updates.
 
     Args:
         json_data (dict): The JSON object to update.
@@ -83,44 +83,33 @@ def def menu_driven_bulk_update_with_substring(json_data: dict) -> dict:
 
         # Ask for target substring and replacement substring
         target_value = input(f"Enter the target substring for '{selected_key}': ").strip()
-        new_value = input(f"Enter the new substring for '{selected_key}': ").strip()
+        new_value = input(f"Enter the new value for '{selected_key}': ").strip()
 
-        # Find matches
+        # Find keys matching the selected key
         matches = find_all_keys_by_value(json_data, f"*{target_value}*", use_wildcard=True)
 
-        # Proceed with updates if matches are found
+        # Check if the key exists but doesn't match the value
+        key_exists = False
         if matches:
-            print(f"\nFound {len(matches)} match(es) for '{selected_key}':")
-            for idx, (key, value, _, _) in enumerate(matches, start=1):
-                print(f"{idx}. Key: {key}, Current Value: {value}, Updated Value (Preview): {value.replace(target_value, new_value)}")
-            print("all. Update all keys with the target value.")
-            print("exit. Exit without making any changes.")
+            for key, value, parent, child_key in matches:
+                if child_key == selected_key:
+                    key_exists = True
+                    if target_value not in value:
+                        print(f"\nKey '{selected_key}' exists with a different value: '{value}'.")
+                        update_confirm = input(f"Do you want to update this value to '{new_value}'? (yes/no): ").strip().lower()
+                        if update_confirm == "yes":
+                            parent[child_key] = new_value
+                            print(f"Updated: Key = '{key}', New Value = '{new_value}'")
+                        else:
+                            print(f"No changes made for '{selected_key}'.")
+                    else:
+                        print(f"\nKey '{selected_key}' already matches the provided value '{target_value}'. No updates needed.")
+                    break
 
-            selection = input("\nEnter the numbers corresponding to the keys you want to update (comma-separated, 'all' for all, or 'exit' to cancel): ").strip().lower()
-
-            if selection == "exit":
-                print("\nNo changes were made.")
-                continue
-
-            if selection == "all":
-                for key, value, parent, child_key in matches:
-                    updated_value = value.replace(target_value, new_value)
-                    parent[child_key] = updated_value
-                    print(f"Updated: Key = '{key}', New Value = '{updated_value}'")
-            else:
-                try:
-                    selected_indices = {int(num.strip()) for num in selection.split(",") if num.strip().isdigit()}
-                    for idx, (key, value, parent, child_key) in enumerate(matches, start=1):
-                        if idx in selected_indices:
-                            updated_value = value.replace(target_value, new_value)
-                            parent[child_key] = updated_value
-                            print(f"Updated: Key = '{key}', New Value = '{updated_value}'")
-                except ValueError:
-                    print("\nInvalid input. No changes were made.")
-                    continue
-        else:
-            print(f"\nNo matches found for '{selected_key}' containing substring '{target_value}'.")
-            add_new = input(f"Do you want to add '{selected_key}' as a new entry? (yes/no): ").strip().lower()
+        # If key doesn't exist or matches are not found
+        if not key_exists:
+            print(f"\nKey '{selected_key}' does not exist or no matching value found for '{target_value}'.")
+            add_new = input(f"Do you want to add '{selected_key}' with value '{new_value}'? (yes/no): ").strip().lower()
             if add_new == "yes":
                 json_data[selected_key] = new_value
                 print(f"Added '{selected_key}' with value '{new_value}'.")
@@ -130,6 +119,28 @@ def def menu_driven_bulk_update_with_substring(json_data: dict) -> dict:
     # Final JSON output
     print("\nFinal JSON after updates:")
     return json_data
+
+
+# Example JSON data
+example_json = {
+    "hostname": "server1.example.com",
+    "ip_address": "192.168.1.1",
+    "servers": [
+        {"name": "server1", "ip": "192.168.1.2"},
+        {"name": "server2", "ip": "192.168.1.3"}
+    ],
+    "metadata": {
+        "serial_number": "SN12345",
+        "status": "active"
+    }
+}
+
+# Run the menu-driven JSON updater
+updated_json = menu_driven_update_with_key_check(example_json)
+
+# Display the final JSON
+print(updated_json)
+
 
 
 # Example JSON data
