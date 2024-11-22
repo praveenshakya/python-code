@@ -121,10 +121,11 @@ def menu_driven_bulk_update_with_substring(json_data: dict) -> dict:
                     print("\nInvalid input. No changes were made.")
                     continue
         else:
+            # Key exists but the value does not match the input
             if selected_key in json_data:
                 current_value = json_data[selected_key]
-                if target_value not in current_value:
-                    print(f"\nKey '{selected_key}' exists with value '{current_value}', but it doesn't match the target substring '{target_value}'.")
+                if current_value != new_value:
+                    print(f"\nKey '{selected_key}' exists with value '{current_value}', but it doesn't match the target value '{new_value}'.")
                     update_confirm = input(f"Do you want to update it to '{new_value}'? (yes/no): ").strip().lower()
                     if update_confirm == "yes":
                         json_data[selected_key] = new_value
@@ -132,7 +133,7 @@ def menu_driven_bulk_update_with_substring(json_data: dict) -> dict:
                     else:
                         print(f"No changes made for '{selected_key}'.")
                 else:
-                    print(f"\nNo changes needed for '{selected_key}', the value matches the target substring '{target_value}'.")
+                    print(f"\nNo changes needed for '{selected_key}', the value matches the target value '{new_value}'.")
             else:
                 print(f"\nNo matches found for '{selected_key}' containing substring '{target_value}'.")
                 add_new = input(f"Do you want to add '{selected_key}' as a new entry? (yes/no): ").strip().lower()
@@ -166,6 +167,7 @@ updated_json = menu_driven_bulk_update_with_substring(example_json)
 
 # Display the final JSON
 print(updated_json)
+
 
 Menu:
 1. hostname
