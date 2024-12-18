@@ -1,0 +1,53 @@
+---
+- name: Install and troubleshoot Apache HTTP Server on Windows
+  hosts: windows
+  tasks:
+    # 1. Allow Apache HTTP traffic through the firewall
+    - name: Allow Apache HTTP traffic through the firewall
+      win_firewall_rule:
+        name: "Apache HTTP Server"
+        localport: 80
+        protocol: TCP
+        action: allow
+        enable: yes
+        direction: in
+
+    # 2. Ensure Apache listens on all IP addresses
+    - name: Ensure Apache listens on all IP addresses
+      win_lineinfile:
+        path: "C:\\Apache24\\conf\\httpd.conf"
+        regexp: '^Listen'
+        line: 'Listen 0.0.0.0:80'
+
+    # 3. Check Apache service status
+    - name: Check Apache HTTP Server service status
+      win_service_facts:
+
+    - name: Show Apache service status
+      debug:
+        var: ansible_facts.services['Apache2.4']
+
+    # 4. Display Apache error logs
+    - name: Display Apache error logs
+      win_shell: |
+        Get-Content C:\Apache24\logs\error.log -Tail 10
+      register: apache_error_log
+
+    - name: Show last 10 lines of Apache error log
+      debug:
+        var: apache_error_log.stdout
+
+    # 5. Check if port 80 is in use
+    - name: Check if port 80 is in use
+      win_shell: netstat -an | findstr ":80"
+      register: port_80_status
+
+    - name: Show result of port 80 check
+      debug:
+        var: port_80_status.stdout
+
+    # 6. Restart Apache service
+    - name: Restart Apache HTTP Server service
+      win_service:
+        name: Apache2.4
+        state: restarted
