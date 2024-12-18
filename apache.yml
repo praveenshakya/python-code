@@ -1,6 +1,19 @@
 - name: Install and start Apache HTTP Server on Windows
   hosts: windows
   tasks:
+
+    - name: Download Microsoft Visual C++ Redistributable
+      win_get_url:
+        url: "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        dest: "C:\\temp\\vc_redist.x64.exe"
+        force: yes
+
+    - name: Install Microsoft Visual C++ Redistributable
+      win_package:
+        path: "C:\\temp\\vc_redist.x64.exe"
+        state: present
+        product_id: "Microsoft Visual C++ 2015-2022 Redistributable"
+        
     # 1. Download Apache HTTP Server
     - name: Download Apache HTTP Server ZIP
       win_get_url:
