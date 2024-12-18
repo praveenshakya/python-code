@@ -1,0 +1,53 @@
+- name: Install and start Apache HTTP Server on Windows
+  hosts: windows
+  tasks:
+    # 1. Download Apache HTTP Server
+    - name: Download Apache HTTP Server ZIP
+      win_get_url:
+        url: "https://www.apachelounge.com/download/VS16/binaries/httpd-2.4.57-win64-VS16.zip"
+        dest: "C:\\temp\\httpd.zip"
+
+    # 2. Unzip the Apache files
+    - name: Extract Apache HTTP Server ZIP
+      win_unzip:
+        src: "C:\\temp\\httpd.zip"
+        dest: "C:\\Apache24"
+        remote_src: yes
+
+    # 3. Configure Apache by updating the httpd.conf file
+    - name: Set ServerRoot and DocumentRoot in Apache configuration
+      win_lineinfile:
+        path: "C:\\Apache24\\conf\\httpd.conf"
+        regexp: "^ServerRoot|^DocumentRoot"
+        line: |
+          {% if item.key == "ServerRoot" %}
+          ServerRoot "C:/Apache24"
+          {% elif item.key == "DocumentRoot" %}
+          DocumentRoot "C:/Apache24/htdocs"
+          {% endif %}
+        loop:
+          - { key: "ServerRoot" }
+          - { key: "DocumentRoot" }
+        when: "'ServerRoot' in item.key or 'DocumentRoot' in item.key"
+
+    # 4. Install the Apache service
+    - name: Install Apache as a Windows service
+      win_shell: |
+        cd C:\\Apache24\\bin
+        httpd.exe -k install
+
+    # 5. Ensure Apache service is started
+    - name: Start Apache HTTP Server service
+      win_service:
+        name: Apache2.4
+        state: started
+
+    # 6. Verify Apache service is running
+    - name: Verify that Apache service is running
+      win_shell: |
+        sc query Apache2.4 | find "RUNNING"
+      register: apache_status
+
+    - name: Debug Apache service status
+      debug:
+        var: apache_status.stdout
