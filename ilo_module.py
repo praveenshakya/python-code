@@ -1,175 +1,98 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
-# Copyright (c) 2025, Your Name <your.email@example.com>
-# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-
-DOCUMENTATION = r"""
----
-module: ilo_raid_config
-short_description: Configure RAID on HPE iLO 5 using Redfish API
-description:
-  - This module configures a RAID array on an HPE server using iLO 5's Redfish API.
-  - Supports RAID 0, RAID 1, and RAID 5.
-  - Automatically detects available drives and applies the specified RAID configuration.
-version_added: "1.0.0"
-author:
-  - Your Name (@yourgithub)
-options:
-  ilo_ip:
-    description: The IP address or hostname of the iLO 5 interface.
-    required: true
-    type: str
-  username:
-    description: The iLO username with sufficient privileges to configure RAID.
-    required: true
-    type: str
-    no_log: true
-  password:
-    description: The password for the iLO user.
-    required: true
-    type: str
-    no_log: true
-  raid_level:
-    description: The RAID level to configure (Raid0, Raid1, or Raid5).
-    required: false
-    type: str
-    choices: ["Raid0", "Raid1", "Raid5"]
-    default: "Raid5"
-requirements:
-  - "python >= 3.6"
-  - "requests"
-"""
-
-EXAMPLES = r"""
-- name: Configure RAID 5 on HPE iLO
-  ilo_raid_config:
-    ilo_ip: "https://192.168.1.100"
-    username: "admin"
-    password: "password"
-    raid_level: "Raid5"
-
-- name: Configure RAID 1
-  ilo_raid_config:
-    ilo_ip: "https://192.168.1.100"
-    username: "admin"
-    password: "password"
-    raid_level: "Raid1"
-"""
-
-RETURN = r"""
-changed:
-  description: Indicates if the RAID configuration changed.
-  returned: always
-  type: bool
-msg:
-  description: Status message of the RAID configuration process.
-  returned: always
-  type: str
-error:
-  description: Detailed error message if the operation failed.
-  returned: when failure occurs
-  type: dict
-"""
-
 from ansible.module_utils.basic import AnsibleModule
 import requests
-import json
-from requests.auth import HTTPBasicAuth
 
-def send_request(url, headers, auth, method="GET", payload=None):
-    """Generic function to send HTTP requests with error handling."""
-    try:
-        if method == "GET":
-            response = requests.get(url, headers=headers, auth=auth, verify=False, timeout=10)
-        elif method == "POST":
-            response = requests.post(url, headers=headers, auth=auth, json=payload, verify=False, timeout=10)
-        else:
-            return {"error": f"Unsupported HTTP method: {method}"}
+DOCUMENTATION = """
+---
+module: ilo_create_logical_drive
+short_description: Create logical drive in iLO using Redfish API
+options:
+  ilo_ip:
+    description: iLO IP Address
+    required: true
+    type: str
+  ilo_username:
+    description: iLO Username
+    required: true
+    type: str
+  ilo_password:
+    description: iLO Password
+    required: true
+    type: str
+  raid_level:
+    description: RAID level (e.g., Raid1, Raid5)
+    required: true
+    type: str
+  data_drives:
+    description: List of drive numbers to use for the logical drive
+    required: true
+    type: list
+  bootable:
+    description: Whether the drive should be bootable
+    required: false
+    type: bool
+    default: false
+"""
 
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 401:
-            return {"error": "Authentication failed. Check username and password."}
-        elif response.status_code == 404:
-            return {"error": "Requested resource not found on the iLO server."}
-        elif response.status_code >= 500:
-            return {"error": f"iLO server error: {response.status_code}"}
-        else:
-            return {"error": f"Unexpected response {response.status_code}: {response.text}"}
 
-    except requests.exceptions.ConnectionError:
-        return {"error": "Unable to connect to iLO. Check network connectivity."}
-    except requests.exceptions.Timeout:
-        return {"error": "Request to iLO timed out. Check iLO responsiveness."}
-    except requests.exceptions.RequestException as e:
-        return {"error": f"An error occurred: {str(e)}"}
+def get_first_array_controller(ilo_ip, ilo_username, ilo_password, headers):
+    controllers_url = f"https://{ilo_ip}/redfish/v1/Systems/1/SmartStorage/ArrayControllers/"
+    response = requests.get(controllers_url, headers=headers, auth=(ilo_username, ilo_password), verify=False)
+    if response.status_code == 200:
+        controllers = response.json().get('Members', [])
+        if controllers:
+            return controllers[0]['@odata.id'].split('/')[-1]  # Return first controller ID
+    return "0"  # Default to 0 if no controller found
 
-def get_available_drives(ilo_ip, username, password, headers):
-    """Retrieve all available drives from iLO storage controller."""
-    drives_path = f"{ilo_ip}/redfish/v1/Systems/1/Storage/1/Drives"
-    result = send_request(drives_path, headers, HTTPBasicAuth(username, password))
-    
-    if "error" in result:
-        return result  # Return error dictionary
 
-    drives = result.get("Members", [])
-    return [drive["@odata.id"] for drive in drives] if drives else {"error": "No drives found on iLO."}
+def create_logical_drive(module):
+    ilo_ip = module.params['ilo_ip']
+    ilo_username = module.params['ilo_username']
+    ilo_password = module.params['ilo_password']
+    raid_level = module.params['raid_level']
+    data_drives = module.params['data_drives']
+    bootable = module.params['bootable']
 
-def create_raid_configuration(ilo_ip, username, password, headers, raid_level):
-    """Configure a RAID array with available drives."""
-    drives_result = get_available_drives(ilo_ip, username, password, headers)
+    headers = {"Content-Type": "application/json"}
+    controller_id = get_first_array_controller(ilo_ip, ilo_username, ilo_password, headers)
 
-    if "error" in drives_result:
-        return {"changed": False, "msg": "RAID configuration failed.", "error": drives_result["error"]}
+    base_drive_path = f"/redfish/v1/Systems/1/SmartStorage/ArrayControllers/{controller_id}/DiskDrives/"
+    drive_paths = [base_drive_path + str(drive) for drive in data_drives]
 
-    if not drives_result or len(drives_result) < 3:
-        return {"changed": False, "msg": "Not enough drives available for RAID 5!"}
-
-    raid_payload = {
+    url = f"https://{ilo_ip}/redfish/v1/Systems/1/SmartStorage/ArrayControllers/{controller_id}/LogicalDrives/"
+    payload = {
         "LogicalDrives": [
             {
                 "Raid": raid_level,
-                "CapacityGiB": 1000,
-                "DataDrives": drives_result[:3]  # Select first 3 drives for RAID 5
+                "DataDrives": drive_paths,
+                "CapacityMiB": 100000,
+                "Accelerator": "None",
+                "Bootable": bootable
             }
-        ]
+        ],
+        "DataGuard": "Disabled"
     }
 
-    storage_action_path = f"{ilo_ip}/redfish/v1/Systems/1/Storage/1/Actions/Storage.ConfigureLogicalDrives"
-    result = send_request(storage_action_path, headers, HTTPBasicAuth(username, password), method="POST", payload=raid_payload)
+    try:
+        response = requests.post(url, json=payload, headers=headers, auth=(ilo_username, ilo_password), verify=False)
+        if response.status_code in [200, 201, 202]:
+            module.exit_json(changed=True, msg="Logical drive created successfully.")
+        else:
+            module.fail_json(msg=f"Failed to create logical drive: {response.text}")
+    except Exception as e:
+        module.fail_json(msg=f"Error: {str(e)}")
 
-    if "error" in result:
-        return {"changed": False, "msg": "RAID configuration failed.", "error": result["error"]}
-
-    return {"changed": True, "msg": "RAID configuration initiated successfully!"}
 
 def main():
-    module_args = dict(
-        ilo_ip=dict(type="str", required=True),
-        username=dict(type="str", required=True, no_log=True),
-        password=dict(type="str", required=True, no_log=True),
-        raid_level=dict(type="str", default="Raid5", choices=["Raid0", "Raid1", "Raid5"])
-    )
-
-    module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
-
-    ilo_ip = module.params["ilo_ip"]
-    username = module.params["username"]
-    password = module.params["password"]
-    raid_level = module.params["raid_level"]
-
-    headers = {"Content-Type": "application/json", "OData-Version": "4.0"}
-
-    if module.check_mode:
-        module.exit_json(changed=False, msg="Check mode: No changes will be made.")
-
-    result = create_raid_configuration(ilo_ip, username, password, headers, raid_level)
-
-    if "error" in result:
-        module.fail_json(msg=result["msg"], error=result["error"])
-    
-    module.exit_json(**result)
+    module_args = {
+        "ilo_ip": {"type": "str", "required": True},
+        "ilo_username": {"type": "str", "required": True},
+        "ilo_password": {"type": "str", "required": True, "no_log": True},
+        "raid_level": {"type": "str", "required": True},
+        "data_drives": {"type": "list", "required": True},
+        "bootable": {"type": "bool", "required": False, "default": False},
+    }
+    module = AnsibleModule(argument_spec=module_args)
+    create_logical_drive(module)
 
 if __name__ == "__main__":
     main()
