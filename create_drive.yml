@@ -1,13 +1,15 @@
-- name: Create Logical Drive in iLO
+- name: Create Logical Drive on iLO 5
   hosts: localhost
+  gather_facts: no
   tasks:
-    - name: Create RAID Logical Drive
+    - name: Create Logical Drive via iLO Redfish
       ilo_create_logical_drive:
         ilo_ip: "192.168.1.100"
         ilo_username: "admin"
-        ilo_password: "password"
-        raid_level: "Raid1"
-        data_drives:  # Provide only drive numbers
-          - 1
-          - 2
-        bootable: true
+        ilo_password: "your_password"
+        raid_level: "Raid5"
+        logical_drive_name: "MyLD"
+        data_drive_count: 4
+        media_type: "HDD"
+        interface_type: "SAS"
+        minimum_size_gib: 1000
