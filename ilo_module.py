@@ -4,7 +4,7 @@ import requests
 DOCUMENTATION = """
 ---
 module: ilo_create_logical_drive
-short_description: Create logical drive in iLO using Redfish API
+short_description: Create logical drive in iLO using Redfish API (iLO 5)
 options:
   ilo_ip:
     description: iLO IP Address
@@ -22,26 +22,27 @@ options:
     description: RAID level (e.g., Raid1, Raid5)
     required: true
     type: str
-  data_drives:
-    description: List of drive numbers to use for the logical drive
+  logical_drive_name:
+    description: Name of the logical drive
     required: true
-    type: list
-  bootable:
-    description: Whether the drive should be bootable
-    required: false
-    type: bool
-    default: false
+    type: str
+  data_drive_count:
+    description: Number of data drives
+    required: true
+    type: int
+  media_type:
+    description: Media type (e.g., HDD or SSD)
+    required: true
+    type: str
+  interface_type:
+    description: Interface type (e.g., SAS or SATA)
+    required: true
+    type: str
+  minimum_size_gib:
+    description: Minimum size in GiB for the drives
+    required: true
+    type: int
 """
-
-
-def get_first_array_controller(ilo_ip, ilo_username, ilo_password, headers):
-    controllers_url = f"https://{ilo_ip}/redfish/v1/Systems/1/SmartStorage/ArrayControllers/"
-    response = requests.get(controllers_url, headers=headers, auth=(ilo_username, ilo_password), verify=False)
-    if response.status_code == 200:
-        controllers = response.json().get('Members', [])
-        if controllers:
-            return controllers[0]['@odata.id'].split('/')[-1]  # Return first controller ID
-    return "0"  # Default to 0 if no controller found
 
 
 def create_logical_drive(module):
@@ -49,35 +50,37 @@ def create_logical_drive(module):
     ilo_username = module.params['ilo_username']
     ilo_password = module.params['ilo_password']
     raid_level = module.params['raid_level']
-    data_drives = module.params['data_drives']
-    bootable = module.params['bootable']
+    logical_drive_name = module.params['logical_drive_name']
+    data_drive_count = module.params['data_drive_count']
+    media_type = module.params['media_type']
+    interface_type = module.params['interface_type']
+    minimum_size_gib = module.params['minimum_size_gib']
 
     headers = {"Content-Type": "application/json"}
-    controller_id = get_first_array_controller(ilo_ip, ilo_username, ilo_password, headers)
+    url = f"https://{ilo_ip}/redfish/v1/Systems/1/smartstorageconfig/settings/"
 
-    base_drive_path = f"/redfish/v1/Systems/1/SmartStorage/ArrayControllers/{controller_id}/DiskDrives/"
-    drive_paths = [base_drive_path + str(drive) for drive in data_drives]
-
-    url = f"https://{ilo_ip}/redfish/v1/Systems/1/SmartStorage/ArrayControllers/{controller_id}/LogicalDrives/"
     payload = {
+        "DataGuard": "Disabled",
         "LogicalDrives": [
             {
+                "LogicalDriveName": logical_drive_name,
                 "Raid": raid_level,
-                "DataDrives": drive_paths,
-                "CapacityMiB": 100000,
-                "Accelerator": "None",
-                "Bootable": bootable
+                "DataDrives": {
+                    "DataDriveCount": data_drive_count,
+                    "DataDriveMediaType": media_type,
+                    "DataDriveInterfaceType": interface_type,
+                    "DataDriveMinimumSizeGiB": minimum_size_gib
+                }
             }
-        ],
-        "DataGuard": "Disabled"
+        ]
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers, auth=(ilo_username, ilo_password), verify=False)
+        response = requests.put(url, json=payload, headers=headers, auth=(ilo_username, ilo_password), verify=False)
         if response.status_code in [200, 201, 202]:
             module.exit_json(changed=True, msg="Logical drive created successfully.")
         else:
-            module.fail_json(msg=f"Failed to create logical drive: {response.text}")
+            module.fail_json(msg=f"Failed to create logical drive: {response.status_code} - {response.text}")
     except Exception as e:
         module.fail_json(msg=f"Error: {str(e)}")
 
@@ -88,8 +91,11 @@ def main():
         "ilo_username": {"type": "str", "required": True},
         "ilo_password": {"type": "str", "required": True, "no_log": True},
         "raid_level": {"type": "str", "required": True},
-        "data_drives": {"type": "list", "required": True},
-        "bootable": {"type": "bool", "required": False, "default": False},
+        "logical_drive_name": {"type": "str", "required": True},
+        "data_drive_count": {"type": "int", "required": True},
+        "media_type": {"type": "str", "required": True},
+        "interface_type": {"type": "str", "required": True},
+        "minimum_size_gib": {"type": "int", "required": True},
     }
     module = AnsibleModule(argument_spec=module_args)
     create_logical_drive(module)
